@@ -2,11 +2,16 @@
 // TODO 1: PREPARING ENVIRONMENT: 1) session 2) functions
 session_start();
 
-// TODO 2: ROUTING
+$aConfig = require_once 'config.php';
+
+$db = mysqli_connect($aConfig['host'], $aConfig['user'], $aConfig['pass'], $aConfig['name']);
+
 if (!empty($_SESSION['auth'])) {
-    header('Location: /admin.php');
+    header('Location: admin.php');
     die;
 }
+
+// TODO 2: ROUTING
 
 // TODO 3: CODE by REQUEST METHODS (ACTIONS) GET, POST, etc. (handle data from request): 1) validate 2) working with data source 3) transforming data
 
@@ -15,39 +20,28 @@ $infoMessage = '';
 
 // 2. handle form data
 if (!empty($_POST['email']) && !empty($_POST['password'])) {
+    $email = mysqli_real_escape_string($db, $_POST['email']);
+    $password = mysqli_real_escape_string($db, $_POST['password']);
 
-    // 3. Check that user has already existed
-    $sUsers = file_get_contents("users.csv");
-    $aJsonsUsers = explode("\n", $sUsers);
+    // Шукаємо користувача з таким мейлом ТА паролем
+    $query = "SELECT * FROM users WHERE email = '$email' AND password = '$password' LIMIT 1";
+    $result = mysqli_query($db, $query);
+    $user = mysqli_fetch_assoc($result);
 
-    $isAlreadyRegistered = false;
-
-    foreach ($aJsonsUsers as $jsonUser) {
-        $aUser = json_decode($jsonUser, true);
-        if (!$aUser) break;
-
-        foreach ($aUser as $email => $password) {
-            if (($email == $_POST['email']) && ($password == $_POST['password'])) {
-                $isAlreadyRegistered = true;
-
-                $_SESSION['auth'] = true;
-                // $_SESSION['email'] = $_POST['email'];
-
-                header("Location: admin.php");
-                die;
-            }
-        }
+    if ($user) {
+        $_SESSION['auth'] = true;
+        $_SESSION['email'] = $user['email']; // Зберігаємо пошту в сесію для guestbook
+        header("Location: admin.php");
+        die;
+    } else {
+        $infoMessage = "Невірний email або пароль. ";
+        $infoMessage .= "<a href='register.php'>Зареєструватися</a>";
     }
-
-    if (!$isAlreadyRegistered) {
-        $infoMessage = "Такого пользователя не существует. Перейдите на страницу регистрации. ";
-        $infoMessage .= "<a href='register.php'>Страница регистрации</a>";
-    }
-
 } elseif (!empty($_POST)) {
-    $infoMessage = 'Заполните форму авторизации!';
+    $infoMessage = 'Заповніть форму авторизації!';
 }
 
+mysqli_close($db);
 
 ?>
 

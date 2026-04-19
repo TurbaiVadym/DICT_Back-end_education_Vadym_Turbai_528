@@ -1,20 +1,17 @@
 <?php
 // TODO 1: PREPARING ENVIRONMENT: 1) session 2) functions
 session_start();
-function getComments($filename) {
-    $comments = [];
-    if (file_exists($filename)) {
-        $fileStream = fopen($filename, "r");
-        while (!feof($fileStream)) {
-            $jsonString = fgets($fileStream);
-            $array = json_decode($jsonString, true);
-            if (!empty($array)) {
-                $comments[] = $array;
-            }
-        }
-        fclose($fileStream);
-    }
-    return array_reverse($comments); // Нові коментарі зверху
+
+$aConfig = require_once 'config.php';
+$db = mysqli_connect(
+        $aConfig ['host'],
+        $aConfig ['user'],
+        $aConfig ['pass'],
+        $aConfig ['name']
+);
+
+if (!$db) {
+    die("Помилка підключення: ".mysqli_connect_error());
 }
 
 // TODO 2: ROUTING
@@ -31,12 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = "Некоректний формат email.";
     }
-
     // 2. Перевірка довжини імені
     if (mb_strlen($name) < 2) {
         $errors[] = "Ім'я занадто коротке.";
     }
-
     // 3. Перевірка довжини тексту
     if (mb_strlen($text) < 5) {
         $errors[] = "Повідомлення має бути довшим за 5 символів.";
@@ -44,32 +39,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
 
-        if (!empty($email) && !empty($name) && !empty($text)) {
-            $data = [
-                    'email' => htmlspecialchars($email),
-                    'name' => htmlspecialchars($name),
-                    'text' => htmlspecialchars($text),
-                    'date' => date('Y-m-d H:i:s')
-            ];
+            $safeEmail = mysqli_real_escape_string($db, $email);
+            $safeName = mysqli_real_escape_string($db, $name);
+            $safeText = mysqli_real_escape_string($db, $text);
 
-            $jsonString = json_encode($data);
-            $fileStream = fopen('comments.csv', 'a');
-            fwrite($fileStream, $jsonString . "\n");
-            fclose($fileStream);
-
-            // Редирект, щоб уникнути повторного відправлення форми при оновленні
-            header("Location: guestbook.php");
-            exit;
-        }
-    }
-
-    else {
-        // Виводимо помилки користувачу
-        foreach ($errors as $error) {
-            echo "<div class='alert alert-danger'>$error</div>";
-        }
+            $query = "INSERT INTO comments (email, name, text) VALUES (
+                                                       '$safeEmail',
+                                                       '$safeName',
+                                                       '$safeText'
+                                                       )";
+            if (mysqli_query($db, $query)) {
+                header("Location: guestbook.php");
+                exit;
+            } else {
+                $errors[] = "Помилка БД: ".mysqli_error($db);
+            }
     }
 }
+    //Отримуємо коментарі
+    $querySelect = "SELECT * FROM comments ORDER BY date DESC";
+    $result = mysqli_query($db, $querySelect);
+    $comments = mysqli_fetch_all($result, MYSQLI_ASSOC);
+
+    mysqli_close ($db );
+
 
 // TODO 4: RENDER: 1) view (html) 2) data (from php)
 
@@ -83,10 +76,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
 
 <div class="container">
-
     <!-- navbar menu -->
     <?php require_once 'sectionNavbar.php' ?>
     <br>
+    <!-- Вивдимо помилки якщо є -->
+    <?php if (!empty($errors)): ?>
+        <?php foreach ($errors as $error): ?>
+            <div class='alert alert-danger'><?= $error ?></div>
+        <?php endforeach; ?>
+    <?php endif; ?>
 
     <!-- guestbook section -->
     <div class="card card-primary">
@@ -97,7 +95,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="row">
                 <div class="col-sm-6">
-                    <!-- TODO: create guestBook html form   -->
 
                     <form action="guestbook.php" method="post">
                         <div class="mb-3">
@@ -130,20 +127,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="card-body">
             <div class="row">
                 <div class="col-sm-6">
-                    <!-- TODO: render guestBook comments   -->
 
-                    <?php
-                    $comments = getComments('comments.csv');
-                        if (empty($comments)): ?>
-                            <p class="text-muted">Відгуків поки немає. Будьте першим!</p>
-                        <?php else: ?>
-                            <?php foreach ($comments as $comment): ?>
-                                <div class="border-bottom mb-3 pb-2">
-                                    <strong><?= $comment['name'] ?></strong> <small class="text-muted"><?= $comment['date'] ?></small>
-                                    <p class="mb-1"><?= $comment['text'] ?></p>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
+                    <?php if (empty($comments)): ?>
+                        <p class="text-muted">Відгуків поки немає. Будьте першим!</p>
+                    <?php else: ?>
+                        <?php foreach ($comments as $comment): ?>
+                            <div class="border-bottom mb-3 pb-2">
+                                <strong><?= htmlspecialchars($comment['name']) ?></strong>
+                                <small class="text-muted"><?= $comment['date'] ?></small>
+                                <p class="mb-1"><?= nl2br(htmlspecialchars($comment['text'])) ?></p>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+
 
                 </div>
             </div>
