@@ -1,0 +1,17 @@
+{
+    "name": "serielantina/pr5",
+    "autoload": {
+        "psr-4": {
+            "Serielantina\\Pr5\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Seriel Antina",
+            "email": "v.v.turbai@student.khai.edu"
+        }
+    ],
+    "require": {
+        "symfony/var-dumper": "6.0"
+    }
+}

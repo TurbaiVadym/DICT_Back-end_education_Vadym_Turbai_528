@@ -2,3 +2,4 @@
 *.iml
 *.iws
 PR3/config.php
+PR5/guestbook/vendor
